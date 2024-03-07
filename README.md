@@ -1,12 +1,25 @@
 # mtrpzLab1
-**bold**
-_italic_
-`monospaced`
-```
-Preformatted text **He He**
-```
-Paragraph1. Lorem Ipsum Dolor Sit Amet. This is still paragraph 1.
-And after a blank line this is paragraph 2.
-snake_case
-_italic case_
 
+## Application description
+This code is designed to process files in Markdown format. It reads the contents of the file, applies formatting (bold, italic, monospaced) according to the markers, and then saves or outputs the processed contents.
+
+---
+## How to build a project
+
+**Installation**
+```
+git clone https://github.com/aleksandrgarachun/mtrpzLab1.git
+```
+to install dependencies use the command
+```
+npm install
+```
+
+**To run the application**
+```
+node src/index.mjs  <file path.md>
+```
+
+---
+## Revert Commit
+###[Link](https://github.com/aleksandrgarachun/mtrpzLab1/commit/0c11ac94965392cde2600840c2038348ac829c10)
