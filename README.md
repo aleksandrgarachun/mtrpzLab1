@@ -22,4 +22,4 @@ node src/index.mjs  <file path.md>
 
 ---
 ## Revert Commit
-###[Link](https://github.com/aleksandrgarachun/mtrpzLab1/commit/0c11ac94965392cde2600840c2038348ac829c10)
+[Link](https://github.com/aleksandrgarachun/mtrpzLab1/commit/0c11ac94965392cde2600840c2038348ac829c10)
