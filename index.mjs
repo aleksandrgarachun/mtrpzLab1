@@ -88,6 +88,7 @@ async function main() {
   try {
     const markdownFilePath = process.argv[2];
     const outputFlagIndex = process.argv.indexOf('--out');
+    const formatFlagIndex = process.argv.indexOf('--format');
 
     if (!markdownFilePath) {
       throw new Error('No file path provided');
@@ -98,18 +99,28 @@ async function main() {
       outputFilePath = path.resolve(process.argv[outputFlagIndex + 1]);
     }
 
-    const processedMarkdown = await processMarkdownFile(markdownFilePath);
-    if (outputFilePath) {
-      await saveProcessedMarkdownToFile(processedMarkdown, outputFilePath);
-    } else {
-      console.log(processedMarkdown);
+    let outputFormat = 'html'; // Default output format
+    if (formatFlagIndex !== -1 && process.argv[formatFlagIndex + 1]) {
+      outputFormat = process.argv[formatFlagIndex + 1].toLowerCase();
     }
+
+    const processedMarkdown = await processMarkdownFile(markdownFilePath);
+
+    if (outputFormat === 'html') {
+      if (outputFilePath) {
+        await saveProcessedMarkdownToFile(processedMarkdown, outputFilePath);
+      } else {
+        console.log(processedMarkdown);
+      }
+    } else if (outputFormat === 'console') {
+      console.log(processedMarkdown); // Output formatted text to console
+    } else {
+      throw new Error('Invalid output format');
+    }
+
   } catch (error) {
     console.error('Error:', error.message);
   }
 }
 
 main();
-
-
-
