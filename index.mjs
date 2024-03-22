@@ -1,126 +1,155 @@
 import fsPromises from 'fs/promises';
 import path from 'path';
+import os from 'node:os';
 
-async function processMarkdownFile(markdownFilePath) {
-  try {
-    const markdownContent = await fsPromises.readFile(markdownFilePath, 'utf-8');
-    const markdownMarkers = ['**', '_', '`', '\n\n'];
+const [, , filePath] = process.argv;
+const outputFlagIndex = process.argv.includes('--out') ? process.argv.indexOf('--out') : -1;
 
-    const markdownSections = markdownContent.split('```');
-    if (markdownSections.length % 2 === 0) {
-      throw new Error('Invalid markdown syntax');
-    }
+if (!filePath) {
+  throw new Error('No file path provided');
+}
 
-    function createMarkerPattern(marker) {
-      return new RegExp(`(?<=^|[\\s,.\\n])${marker}([^${marker}\\s][^${marker}]*[^${marker}\\s]*)${marker}(?=[\\s,.\\n]|$)`, 'g');
-    }
 
-    const boldPattern = createMarkerPattern('\\*\\*');
-    const italicPattern = createMarkerPattern('_');
-    const monospacedPattern = createMarkerPattern('`');
+const boldPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)\\*\\*(?=\\S)(.+?)(?<=\\S)\\*\\*(?=[ ,.:;\\n\\t]|$)', 'g');
+const italicPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)_(?=\\S)(.+?)(?<=\\S)_(?=[ ,.:;\\n\\t]|$)', 'g');
+const monospacedPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)`(?=\\S)(.+?)(?=\\S)`(?=[ ,.:;\\n\\t]|$)', 'g');
+const leftBoldPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)\\*\\*(?=\\S)', 'g');
+const rightBoldPattern = new RegExp('(?<=\\S)\\*\\*(?=[ ,.:;\\n\\t]|$)', 'g');
+const leftItalicPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)_(?=\\S)', 'g');
+const rightItalicPattern = new RegExp('(?<=\\S)_(?=[ ,.:;\\n\\t]|$)', 'g');
+const leftMonospacedPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)`(?=\\S)', 'g');
+const rightMonospacedPattern = new RegExp('(?=\\S)`(?=[ ,.:;\\n\\t]|$)', 'g');
 
-    const convertMarkdown = (regex, marker, tag) => {
-      markdownSections.forEach((section, index) => {
-        if (index % 2 === 0) {
-          let replacedSection = section;
-          let match;
-          while ((match = regex.exec(section)) !== null) {
-            const [fullMatch, content] = match.slice(0, 2);
-            if (content.endsWith(' ')) {
-              throw new Error('Invalid markdown syntax');
-            }
-            const nestedMarksCount = (marker) =>
-              content.split('').filter((char) => char === marker).length;
-            if (
-              nestedMarksCount('*') > 3 ||
-              nestedMarksCount(markdownMarkers[1]) > 1 ||
-              nestedMarksCount(markdownMarkers[2]) > 1
-            ) {
-              throw new Error('Nested markers are not allowed');
-            }
-            const replacement = `<${tag}>${content}</${tag}>`;
-            replacedSection = replacedSection.replace(fullMatch, replacement);
+
+const formatParagraphs  = (event) => {
+  const parag = event.split(/\r?\n\s*\r?\n/).filter((par) => par.trim() !== '');
+  const JoinParagraphs = parag.map((par) => `<p>${par.trim()}</p>`).join('');
+
+  return JoinParagraphs;
+};
+
+
+const formatCodeBlocks = (event) => {
+  if (!/^[\r\n]/.test(event) || !/[\r\n]$/.test(event)) {
+    throw new Error('Preformatted text must be enclosed with line breaks');
+  }
+  return `<pre>${event.trim()}</pre>${os.EOL}`;
+};
+
+
+
+const formatTextWithHtmlTags = (event) => {
+  return event.replace(boldPattern, (match, p1) => `<b>${p1}</b>`)
+                          .replace(italicPattern, (match, p1) => `<i>${p1}</i>`)
+                          .replace(monospacedPattern, (match, p1) => `<tt>${p1}</tt>`);
+
+  
+};
+
+const validateMarkerClosure = (event, leftRegex, rightRegex, regex) => {
+  const countMarkers = (str, regex) => (str.match(regex) || []).length;
+
+  const totalMarkers = countMarkers(event, regex) * 2;
+  const leftMarkers = countMarkers(event, leftRegex);
+  const rightMarkers = countMarkers(event, rightRegex);
+
+  if (leftMarkers + rightMarkers !== totalMarkers) {
+    throw new Error('Problem with close marker');
+  }
+};
+
+const markers = ['**', '_', '`'];
+
+const checkNestedMarkers = (event, pattern, marker) => {
+  const parts = event.match(pattern);
+  if (parts) {
+    for (const part of parts) {
+      const nestedMarkers = part.split(marker).filter(mark => mark !== '');
+      for (const nested of nestedMarkers) {
+        if (nested.length > 2) {
+          const firstTwoChars = nested.substring(0, 2);
+          const lastTwoChars = nested.substring(nested.length - 2);
+          if (markers.includes(firstTwoChars) || markers.includes(lastTwoChars)) {
+            throw new Error('Permitted markers are nested');
           }
-          
-          markdownSections[index] = replacedSection;
         }
-      });
-    };
-
-    const formattingRules = [
-      { regex: boldPattern, marker: markdownMarkers[0], tag: 'b' },
-      { regex: italicPattern, marker: markdownMarkers[1], tag: 'i' },
-      { regex: monospacedPattern, marker: markdownMarkers[2], tag: 'tt' }
-    ];
-
-    formattingRules.forEach(rule => {
-      convertMarkdown(rule.regex, rule.marker, rule.tag);
-    });
-
-    const processedMarkdownSections = markdownSections.map((section, index) => {
-      if (index % 2 === 0 && section.includes(markdownMarkers[3])) {
-        const paragraphs = section.split(markdownMarkers[3]);
-        return paragraphs.map((paragraph) => `<p>${paragraph.trim()}</p>`).join('\n');
-      } else if (index % 2 !== 0 && !section.match(/^\s*\n/) && !section.match(/^\s*\*\*/)) {
-        throw new Error('Should be line break after preformatted marker');
-      } else if (index % 2 !== 0) {
-        return `\n<pre>${section}</pre>`;
+        if (nested.length > 1) {
+          if (markers.includes(nested[0]) || markers.includes(nested[nested.length - 1])) {
+            throw new Error('Permitted markers are nested');
+          }
+        }
+        const asterisksCount = (nested.match(/\*/g) || []).length;
+        const underscoresCount = (nested.match(/_/g) || []).length;
+        const backticksCount = (nested.match(/`/g) || []).length;
+        if (asterisksCount > 1 || underscoresCount > 1 || backticksCount > 1) {
+          throw new Error('Permitted markers are nested');
+        }
       }
-      return section;
-    });
-
-    return processedMarkdownSections.join('');
-  } catch (error) {
-    throw new Error('Error processing markdown file: ' + error.message);
+    }
   }
-}
+};
 
-async function saveProcessedMarkdownToFile(processedMarkdown, outputFilePath) {
-  try {
-    await fsPromises.writeFile(outputFilePath, processedMarkdown);
-    console.log('Processed markdown saved to:', outputFilePath);
-  } catch (error) {
-    throw new Error('Error saving processed markdown to file: ' + error.message);
+
+
+const formatPlainText = (event) => {
+  checkTextMarkers(event);
+  const htmlText = formatTextWithHtmlTags(formatParagraphs (event));
+  return htmlText;
+};
+
+const formatPreformattedText = (event) => {
+  return formatCodeBlocks(event);
+};
+const regexPatterns = [boldPattern, italicPattern, monospacedPattern];
+
+const checkTextMarkers = (event) => {
+  validateMarkerClosure(event, leftBoldPattern, rightBoldPattern, boldPattern);
+  validateMarkerClosure(event, leftItalicPattern, rightItalicPattern, italicPattern);
+  validateMarkerClosure(event, leftMonospacedPattern, rightMonospacedPattern, monospacedPattern);
+
+  regexPatterns.forEach((regex, index) =>
+  checkNestedMarkers(event, regex, markers[index])
+  );
+};
+const markdownContent = await fsPromises.readFile(filePath, 'utf-8');
+
+const renderMarkdownAsHTML = () => {
+  const parts = markdownContent.split('```');
+  if (parts.length % 2 === 0) {
+    throw new Error('The preformatted marker provider lacks a closing tag.');
   }
-}
 
-async function main() {
-  try {
-    const markdownFilePath = process.argv[2];
-    const outputFlagIndex = process.argv.indexOf('--out');
-    const formatFlagIndex = process.argv.indexOf('--format');
+  let htmlContent = '';
 
-    if (!markdownFilePath) {
-      throw new Error('No file path provided');
-    }
-
-    let outputFilePath;
-    if (outputFlagIndex !== -1 && process.argv[outputFlagIndex + 1]) {
-      outputFilePath = path.resolve(process.argv[outputFlagIndex + 1]);
-    }
-
-    let outputFormat = 'html'; // Default output format
-    if (formatFlagIndex !== -1 && process.argv[formatFlagIndex + 1]) {
-      outputFormat = process.argv[formatFlagIndex + 1].toLowerCase();
-    }
-
-    const processedMarkdown = await processMarkdownFile(markdownFilePath);
-
-    if (outputFormat === 'html') {
-      if (outputFilePath) {
-        await saveProcessedMarkdownToFile(processedMarkdown, outputFilePath);
-      } else {
-        console.log(processedMarkdown);
-      }
-    } else if (outputFormat === 'console') {
-      console.log(processedMarkdown); // Output formatted text to console
+  for (let i = 0; i < parts.length; i++) {
+    const currentPart = parts[i];
+    if (i % 2 === 0) {
+      const formattedPart = formatPlainText(currentPart);
+      htmlContent += formattedPart;
     } else {
-      throw new Error('Invalid output format');
+      const preformattedPart = formatPreformattedText(currentPart);
+      htmlContent += preformattedPart;
     }
-
-  } catch (error) {
-    console.error('Error:', error.message);
   }
-}
 
-main();
+  return htmlContent;
+};
+
+const generateHTML = async () => {
+  try {
+    const htmlContent = renderMarkdownAsHTML();
+    if (outputFlagIndex !== -1 && process.argv[outputFlagIndex + 1]) {
+      const outputPath = path.resolve(process.argv[outputFlagIndex + 1]);
+      await fsPromises.writeFile(outputPath, htmlContent);
+      console.log('HTML file generated successfully at:', outputPath);
+    } else {
+      console.log(htmlContent);
+    }
+  } catch (error) {
+    console.error('Error generating HTML:', error);
+  }
+};
+
+generateHTML();
+
+
