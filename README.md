@@ -9,6 +9,7 @@ This code is designed to process files in Markdown format. It reads the contents
 **Installation**
 ```
 git clone https://github.com/aleksandrgarachun/mtrpzLab1.git
+git checkout lab2
 ```
 to install dependencies use the command
 ```
@@ -17,7 +18,12 @@ npm install
 
 **To run the application**
 ```
-node src/index.mjs  <file path.md>
+node index.mjs -f=<format (html|esc)> <file path.md>
+```
+
+**To run test**
+```
+npm test
 ```
 
 # Example
@@ -51,5 +57,12 @@ node src/index.mjs  <file path.md>
 ## Revert Commit
 [Link](https://github.com/aleksandrgarachun/mtrpzLab1/commit/0c11ac94965392cde2600840c2038348ac829c10)
 
+## Successfull tests
+[Link](https://github.com/aleksandrgarachun/mtrpzLab1/commit/75c01f68e3dcf20f6f87c4cbc3634f782af2d85c)
 
+## Faulty tests
+[Link](https://github.com/aleksandrgarachun/mtrpzLab1/commit/40e25c4d06fa52896254f7a498b9c23e5c4c118a)
+
+## Pull request
+In progress!
 
