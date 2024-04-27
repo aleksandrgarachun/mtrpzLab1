@@ -57,17 +57,17 @@ const formatParagraphs = (event) => {
   return JoinParagraphs
 }
 
-const formatCodeBlocks = (event) => {
+const formatCodeBlocks = (event, format) => {
   if (!/^[\r\n]/.test(event) || !/[\r\n]$/.test(event)) {
     throw new Error('Preformatted text must be enclosed with line breaks')
   }
-  return progValues.format === 'html' ? `<pre>${event.trim()}</pre>${os.EOL}` : `\x1b[7m${event.trim()}\x1b[0m${os.EOL}`
+  return format === 'html' ? `<pre>${event.trim()}</pre>${os.EOL}` : `\x1b[7m${event.trim()}\x1b[0m${os.EOL}`
 }
 
-const formatTextWithTags = (event) => {
-  return event.replace(boldPattern, (match, p1) => progValues.format === 'html' ? `<b>${p1}</b>` : `\x1b[1m${p1}\x1b[0m`)
-    .replace(italicPattern, (match, p1) => progValues.format === 'html' ? `<i>${p1}</i>` : `\x1b[3m${p1}\x1b[0m`)
-    .replace(monospacedPattern, (match, p1) => progValues.format === 'html' ? `<tt>${p1}</tt>` : `\x1b[7m${p1}\x1b[0m`)
+const formatTextWithTags = (event, format) => {
+  return event.replace(boldPattern, (match, p1) => format === 'html' ? `<b>${p1}</b>` : `\x1b[1m${p1}\x1b[0m`)
+    .replace(italicPattern, (match, p1) => format === 'html' ? `<i>${p1}</i>` : `\x1b[3m${p1}\x1b[0m`)
+    .replace(monospacedPattern, (match, p1) => format === 'html' ? `<tt>${p1}</tt>` : `\x1b[7m${p1}\x1b[0m`)
 }
 
 const validateMarkerClosure = (event, leftRegex, rightRegex, regex) => {
@@ -113,14 +113,14 @@ const checkNestedMarkers = (event, pattern, marker) => {
   }
 }
 
-const formatPlainText = (event) => {
+const formatPlainText = (event, format) => {
   checkTextMarkers(event)
-  const htmlText = formatTextWithTags(progValues.format === 'html' ? formatParagraphs(event) : event)
+  const htmlText = formatTextWithTags(format === 'html' ? formatParagraphs(event) : event, format)
   return htmlText
 }
 
-const formatPreformattedText = (event) => {
-  return formatCodeBlocks(event)
+const formatPreformattedText = (event, format) => {
+  return formatCodeBlocks(event, format)
 }
 const regexPatterns = [boldPattern, italicPattern, monospacedPattern]
 
@@ -133,10 +133,10 @@ const checkTextMarkers = (event) => {
     checkNestedMarkers(event, regex, markers[index])
   )
 }
-const markdownContent = readFileSync(progValues.inputFileName, 'utf-8')
 
-const renderMarkdown = () => {
-  const parts = markdownContent.split('```')
+
+export const convertMarkdown = (content, format) => {
+  const parts = content.split('```')
   if (parts.length % 2 === 0) {
     throw new Error('The preformatted marker provider lacks a closing tag.')
   }
@@ -146,10 +146,10 @@ const renderMarkdown = () => {
   for (let i = 0; i < parts.length; i++) {
     const currentPart = parts[i]
     if (i % 2 === 0) {
-      const formattedPart = formatPlainText(currentPart)
+      const formattedPart = formatPlainText(currentPart, format)
       formattedContent += formattedPart
     } else {
-      const preformattedPart = formatPreformattedText(currentPart)
+      const preformattedPart = formatPreformattedText(currentPart, format)
       formattedContent += preformattedPart
     }
   }
@@ -159,7 +159,8 @@ const renderMarkdown = () => {
 
 const replaceMarkdown = async () => {
   try {
-    const htmlContent = renderMarkdown()
+    const markdownContent = readFileSync(progValues.inputFileName, 'utf-8')
+    const htmlContent = convertMarkdown(markdownContent, progValues.format)
     if (progValues.outToFile) {
       writeFileSync(outputPath, htmlContent)
       console.log('HTML file generated successfully at:', outputPath)
