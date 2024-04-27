@@ -31,7 +31,7 @@ const formatCodeBlocks = (event, format) => {
 
 const formatTextWithTags = (event, format) => {
   return event.replace(boldPattern, (match, p1) => format === 'html' ? `<b>${p1}</b>` : `\x1b[1m${p1}\x1b[0m`)
-    .replace(italicPattern, (match, p1) => format === 'html' ? `<i>${p1}</i>` : `\x1b[3m${p1}\x1b[0m`)
+    .replace(italicPattern, (match, p1) => format === 'html' ? `<ip>${p1}</i>` : `\x1b[3m${p1}\x1b[0m`) // here we have error
     .replace(monospacedPattern, (match, p1) => format === 'html' ? `<tt>${p1}</tt>` : `\x1b[7m${p1}\x1b[0m`)
 }
 
