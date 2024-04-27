@@ -1,155 +1,174 @@
-import fsPromises from 'fs/promises';
-import path from 'path';
-import os from 'node:os';
-
-const [, , filePath] = process.argv;
-const outputFlagIndex = process.argv.includes('--out') ? process.argv.indexOf('--out') : -1;
-
-if (!filePath) {
-  throw new Error('No file path provided');
+'use strict'
+import { readFileSync, writeFileSync } from 'fs'
+import path from 'path'
+import os from 'node:os'
+const progValues = {
+  format: 'html',
+  outToFile: false,
+  outFileName: '',
+  inputFileName: '',
 }
 
+let pickNext = false
 
-const boldPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)\\*\\*(?=\\S)(.+?)(?<=\\S)\\*\\*(?=[ ,.:;\\n\\t]|$)', 'g');
-const italicPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)_(?=\\S)(.+?)(?<=\\S)_(?=[ ,.:;\\n\\t]|$)', 'g');
-const monospacedPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)`(?=\\S)(.+?)(?=\\S)`(?=[ ,.:;\\n\\t]|$)', 'g');
-const leftBoldPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)\\*\\*(?=\\S)', 'g');
-const rightBoldPattern = new RegExp('(?<=\\S)\\*\\*(?=[ ,.:;\\n\\t]|$)', 'g');
-const leftItalicPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)_(?=\\S)', 'g');
-const rightItalicPattern = new RegExp('(?<=\\S)_(?=[ ,.:;\\n\\t]|$)', 'g');
-const leftMonospacedPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)`(?=\\S)', 'g');
-const rightMonospacedPattern = new RegExp('(?=\\S)`(?=[ ,.:;\\n\\t]|$)', 'g');
+for (const arg of process.argv.slice(2)) {
+  if (pickNext) {
+    progValues.outFileName = arg
+    pickNext = false
+  }
+  if (arg.startsWith('-f=')) {
+    progValues.format = arg.split('=')[1]
+  }
+  else if (arg === '--out') {
+    progValues.outToFile = true
+    pickNext = true
+  }
+  else {
+    progValues.inputFileName = arg
+  }
+}
 
+if (!progValues.inputFileName) {
+  throw new Error('No file path provided')
+}
 
-const formatParagraphs  = (event) => {
-  const parag = event.split(/\r?\n\s*\r?\n/).filter((par) => par.trim() !== '');
-  const JoinParagraphs = parag.map((par) => `<p>${par.trim()}</p>`).join('');
+if (progValues.outToFile && !progValues.outFileName) {
+  throw new Error('No output file name provided')
+}
 
-  return JoinParagraphs;
-};
+if (progValues.format !== 'html' && progValues.format !== 'esc') {
+  throw new Error('Invalid format')
+}
 
+const boldPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)\\*\\*(?=\\S)(.+?)(?<=\\S)\\*\\*(?=[ ,.:;\\n\\t]|$)', 'g')
+const italicPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)_(?=\\S)(.+?)(?<=\\S)_(?=[ ,.:;\\n\\t]|$)', 'g')
+const monospacedPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)`(?=\\S)(.+?)(?=\\S)`(?=[ ,.:;\\n\\t]|$)', 'g')
+const leftBoldPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)\\*\\*(?=\\S)', 'g')
+const rightBoldPattern = new RegExp('(?<=\\S)\\*\\*(?=[ ,.:;\\n\\t]|$)', 'g')
+const leftItalicPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)_(?=\\S)', 'g')
+const rightItalicPattern = new RegExp('(?<=\\S)_(?=[ ,.:;\\n\\t]|$)', 'g')
+const leftMonospacedPattern = new RegExp('(?<=[ ,.:;\\n\\t]|^)`(?=\\S)', 'g')
+const rightMonospacedPattern = new RegExp('(?=\\S)`(?=[ ,.:;\\n\\t]|$)', 'g')
+
+const formatParagraphs = (event) => {
+  const parag = event.split(/\r?\n\s*\r?\n/).filter((par) => par.trim() !== '')
+  const JoinParagraphs = parag.map((par) => `<p>${par.trim()}</p>`).join('')
+
+  return JoinParagraphs
+}
 
 const formatCodeBlocks = (event) => {
   if (!/^[\r\n]/.test(event) || !/[\r\n]$/.test(event)) {
-    throw new Error('Preformatted text must be enclosed with line breaks');
+    throw new Error('Preformatted text must be enclosed with line breaks')
   }
-  return `<pre>${event.trim()}</pre>${os.EOL}`;
-};
+  return progValues.format === 'html' ? `<pre>${event.trim()}</pre>${os.EOL}` : `\x1b[7m${event.trim()}\x1b[0m${os.EOL}`
+}
 
-
-
-const formatTextWithHtmlTags = (event) => {
-  return event.replace(boldPattern, (match, p1) => `<b>${p1}</b>`)
-                          .replace(italicPattern, (match, p1) => `<i>${p1}</i>`)
-                          .replace(monospacedPattern, (match, p1) => `<tt>${p1}</tt>`);
-
-  
-};
+const formatTextWithTags = (event) => {
+  return event.replace(boldPattern, (match, p1) => progValues.format === 'html' ? `<b>${p1}</b>` : `\x1b[1m${p1}\x1b[0m`)
+    .replace(italicPattern, (match, p1) => progValues.format === 'html' ? `<i>${p1}</i>` : `\x1b[3m${p1}\x1b[0m`)
+    .replace(monospacedPattern, (match, p1) => progValues.format === 'html' ? `<tt>${p1}</tt>` : `\x1b[7m${p1}\x1b[7m`)
+}
 
 const validateMarkerClosure = (event, leftRegex, rightRegex, regex) => {
-  const countMarkers = (str, regex) => (str.match(regex) || []).length;
+  const countMarkers = (str, regex) => (str.match(regex) || []).length
 
-  const totalMarkers = countMarkers(event, regex) * 2;
-  const leftMarkers = countMarkers(event, leftRegex);
-  const rightMarkers = countMarkers(event, rightRegex);
+  const totalMarkers = countMarkers(event, regex) * 2
+  const leftMarkers = countMarkers(event, leftRegex)
+  const rightMarkers = countMarkers(event, rightRegex)
 
   if (leftMarkers + rightMarkers !== totalMarkers) {
-    throw new Error('Problem with close marker');
+    throw new Error('Problem with close marker')
   }
-};
+}
 
-const markers = ['**', '_', '`'];
+const markers = ['**', '_', '`']
 
 const checkNestedMarkers = (event, pattern, marker) => {
-  const parts = event.match(pattern);
+  const parts = event.match(pattern)
   if (parts) {
     for (const part of parts) {
-      const nestedMarkers = part.split(marker).filter(mark => mark !== '');
+      const nestedMarkers = part.split(marker).filter(mark => mark !== '')
       for (const nested of nestedMarkers) {
         if (nested.length > 2) {
-          const firstTwoChars = nested.substring(0, 2);
-          const lastTwoChars = nested.substring(nested.length - 2);
+          const firstTwoChars = nested.substring(0, 2)
+          const lastTwoChars = nested.substring(nested.length - 2)
           if (markers.includes(firstTwoChars) || markers.includes(lastTwoChars)) {
-            throw new Error('Permitted markers are nested');
+            throw new Error('Permitted markers are nested')
           }
         }
         if (nested.length > 1) {
           if (markers.includes(nested[0]) || markers.includes(nested[nested.length - 1])) {
-            throw new Error('Permitted markers are nested');
+            throw new Error('Permitted markers are nested')
           }
         }
-        const asterisksCount = (nested.match(/\*/g) || []).length;
-        const underscoresCount = (nested.match(/_/g) || []).length;
-        const backticksCount = (nested.match(/`/g) || []).length;
+        const asterisksCount = (nested.match(/\*/g) || []).length
+        const underscoresCount = (nested.match(/_/g) || []).length
+        const backticksCount = (nested.match(/`/g) || []).length
         if (asterisksCount > 1 || underscoresCount > 1 || backticksCount > 1) {
-          throw new Error('Permitted markers are nested');
+          throw new Error('Permitted markers are nested')
         }
       }
     }
   }
-};
-
-
+}
 
 const formatPlainText = (event) => {
-  checkTextMarkers(event);
-  const htmlText = formatTextWithHtmlTags(formatParagraphs (event));
-  return htmlText;
-};
+  checkTextMarkers(event)
+  const htmlText = formatTextWithTags(progValues.format === 'html' ? formatParagraphs(event) : event)
+  return htmlText
+}
 
 const formatPreformattedText = (event) => {
-  return formatCodeBlocks(event);
-};
-const regexPatterns = [boldPattern, italicPattern, monospacedPattern];
+  return formatCodeBlocks(event)
+}
+const regexPatterns = [boldPattern, italicPattern, monospacedPattern]
 
 const checkTextMarkers = (event) => {
-  validateMarkerClosure(event, leftBoldPattern, rightBoldPattern, boldPattern);
-  validateMarkerClosure(event, leftItalicPattern, rightItalicPattern, italicPattern);
-  validateMarkerClosure(event, leftMonospacedPattern, rightMonospacedPattern, monospacedPattern);
+  validateMarkerClosure(event, leftBoldPattern, rightBoldPattern, boldPattern)
+  validateMarkerClosure(event, leftItalicPattern, rightItalicPattern, italicPattern)
+  validateMarkerClosure(event, leftMonospacedPattern, rightMonospacedPattern, monospacedPattern)
 
   regexPatterns.forEach((regex, index) =>
-  checkNestedMarkers(event, regex, markers[index])
-  );
-};
-const markdownContent = await fsPromises.readFile(filePath, 'utf-8');
+    checkNestedMarkers(event, regex, markers[index])
+  )
+}
+const markdownContent = readFileSync(progValues.inputFileName, 'utf-8')
 
-const renderMarkdownAsHTML = () => {
-  const parts = markdownContent.split('```');
+const renderMarkdown = () => {
+  const parts = markdownContent.split('```')
   if (parts.length % 2 === 0) {
-    throw new Error('The preformatted marker provider lacks a closing tag.');
+    throw new Error('The preformatted marker provider lacks a closing tag.')
   }
 
-  let htmlContent = '';
+  let formattedContent = ''
 
   for (let i = 0; i < parts.length; i++) {
-    const currentPart = parts[i];
+    const currentPart = parts[i]
     if (i % 2 === 0) {
-      const formattedPart = formatPlainText(currentPart);
-      htmlContent += formattedPart;
+      const formattedPart = formatPlainText(currentPart)
+      formattedContent += formattedPart
     } else {
-      const preformattedPart = formatPreformattedText(currentPart);
-      htmlContent += preformattedPart;
+      const preformattedPart = formatPreformattedText(currentPart)
+      formattedContent += preformattedPart
     }
   }
 
-  return htmlContent;
-};
+  return formattedContent
+}
 
-const generateHTML = async () => {
+const replaceMarkdown = async () => {
   try {
-    const htmlContent = renderMarkdownAsHTML();
-    if (outputFlagIndex !== -1 && process.argv[outputFlagIndex + 1]) {
-      const outputPath = path.resolve(process.argv[outputFlagIndex + 1]);
-      await fsPromises.writeFile(outputPath, htmlContent);
-      console.log('HTML file generated successfully at:', outputPath);
+    const htmlContent = renderMarkdown()
+    if (progValues.outToFile) {
+      writeFileSync(outputPath, htmlContent)
+      console.log('HTML file generated successfully at:', outputPath)
     } else {
-      console.log(htmlContent);
+      console.log(htmlContent)
     }
   } catch (error) {
-    console.error('Error generating HTML:', error);
+    console.error('Error generating HTML:', error)
   }
-};
+}
 
-generateHTML();
-
-
+replaceMarkdown()
