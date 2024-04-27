@@ -67,7 +67,7 @@ const formatCodeBlocks = (event) => {
 const formatTextWithTags = (event) => {
   return event.replace(boldPattern, (match, p1) => progValues.format === 'html' ? `<b>${p1}</b>` : `\x1b[1m${p1}\x1b[0m`)
     .replace(italicPattern, (match, p1) => progValues.format === 'html' ? `<i>${p1}</i>` : `\x1b[3m${p1}\x1b[0m`)
-    .replace(monospacedPattern, (match, p1) => progValues.format === 'html' ? `<tt>${p1}</tt>` : `\x1b[7m${p1}\x1b[7m`)
+    .replace(monospacedPattern, (match, p1) => progValues.format === 'html' ? `<tt>${p1}</tt>` : `\x1b[7m${p1}\x1b[0m`)
 }
 
 const validateMarkerClosure = (event, leftRegex, rightRegex, regex) => {
