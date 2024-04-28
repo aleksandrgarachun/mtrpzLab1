@@ -97,7 +97,6 @@ const checkTextMarkers = (event) => {
   )
 }
 
-
 export default (content, format) => {
   const parts = content.split('```')
   if (parts.length % 2 === 0) {
