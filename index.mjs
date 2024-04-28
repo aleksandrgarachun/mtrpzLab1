@@ -11,7 +11,9 @@ import converter from './converter.mjs'
 
 let pickNext = false
 
-for (const arg of process.argv.slice(2)) {
+progValues.inputFileName = process.argv.pop()
+
+for (const arg of process.argv.slice(2, -1)) {
   if (pickNext) {
     progValues.outFileName = arg
     pickNext = false
@@ -24,7 +26,7 @@ for (const arg of process.argv.slice(2)) {
     pickNext = true
   }
   else {
-    progValues.inputFileName = arg
+    throw new Error('Invalid argument')
   }
 }
 
