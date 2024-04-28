@@ -52,6 +52,9 @@ npm test
 </pre>
 ```
 
+# Pull request with passed tests
+[Link](https://github.com/aleksandrgarachun/mtrpzLab1/pull/1)
+
 
 ---
 ## Revert Commit
